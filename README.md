@@ -2,25 +2,7 @@
 cnn image recognition 
 
  CNN image recognition project 
- <h1 align="center">Hi 👋, I'm Krishan kant</h1>
-<h3 align="center">ai engineer aspirant</h3>
-
-- currently working as ai engineer [CNN-image-recognition Public](https://github.com/kantkrishan0206-crypto/CNNVision)
-
-- 🌱 I’m currently learning **machine learning ,trading and research with NumPy, pandas etc**
-
-- 👯 I’m looking to collaborate on [Owner avatar twitter-sentiments-analysis-](https://github.com/Krishancse/CNN-image-recognition Public)
-
-- 👨‍💻 All of my projects are available at https://github.com/kantkrishan0206-crypto 
-
-- 💬 Ask me about **ai, ml ,dl ,data science and quantitative trading and research**
-
-- 📫 How to reach me **kantkrishan0205@gmail.com**
-
-- 📄 Know about my experiences [www.linkedin.com/in/krishan-kant-ab9475229](www.linkedin.com/in/krishan-kant-ab9475229)
-
-
-
+ 
 ### Directory Structure:
 
 ```
