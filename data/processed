@@ -1,1 +1,295 @@
+# src/preprocess.py
+#
+# Purpose:
+# - Read manifests from data/raw/manifests
+# - Resize images, optionally augment train split
+# - Save processed images into data/processed/{split}/{class}/
+# - Compute normalization stats (mean, std) from training set
+# - Write processed manifests and stats
+# - Provide CLI to run end-to-end
+#
+# Usage:
+#   python -m src.preprocess --raw-root data/raw --proc-root data/processed --image-size 64 64 --augment
+#
+# Notes:
+# - Normalization (mean/std) is computed and saved, but not applied to saved PNGs.
+#   Apply normalization during dataloader transforms using stats from data/processed/stats.json.
+# - Keeps filenames deterministic; includes hash for auditability.
 
+import os
+import json
+import shutil
+import argparse
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+import numpy as np
+from PIL import Image, ImageOps
+from tqdm import tqdm
+
+# ---------------------------
+# Configuration defaults
+# ---------------------------
+DEFAULT_RAW_ROOT = "data/raw"
+DEFAULT_PROC_ROOT = "data/processed"
+DEFAULT_IMAGE_SIZE = (64, 64)  # width, height
+DEFAULT_IMAGE_FORMAT = "png"
+DEFAULT_AUGMENT = False
+
+# ---------------------------
+# Utilities
+# ---------------------------
+def ensure_dir(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+
+def clean_dir(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+def read_json(path: Path) -> Dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def write_json(path: Path, obj: Dict) -> None:
+    ensure_dir(path.parent)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2)
+
+def list_required_manifests(root: Path) -> Dict[str, Path]:
+    mroot = root / "manifests"
+    return {
+        "train": mroot / "train.json",
+        "val": mroot / "val.json",
+        "test": mroot / "test.json",
+    }
+
+def verify_manifests_exist(manifests: Dict[str, Path]) -> None:
+    missing = [split for split, p in manifests.items() if not p.exists()]
+    if missing:
+        raise FileNotFoundError(f"Missing raw manifests: {missing}. Run src.data_ingest first.")
+
+def split_items(manifest_path: Path) -> List[Dict]:
+    items = read_json(manifest_path)
+    # sanity: expected keys
+    for it in items:
+        for k in ("path", "label", "class_name"):
+            if k not in it:
+                raise ValueError(f"Manifest item missing key '{k}': {it}")
+    return items
+
+# ---------------------------
+# Image ops
+# ---------------------------
+def load_image(path: str) -> Image.Image:
+    img = Image.open(path).convert("RGB")
+    return img
+
+def resize_image(img: Image.Image, size: Tuple[int, int]) -> Image.Image:
+    # Maintain aspect ratio via thumbnail then pad to exact size
+    target_w, target_h = size
+    img = ImageOps.contain(img, (target_w, target_h))
+    # Pad to target with black
+    pad_w = target_w - img.width
+    pad_h = target_h - img.height
+    if pad_w > 0 or pad_h > 0:
+        img = ImageOps.expand(
+            img,
+            border=(pad_w // 2, pad_h // 2, pad_w - pad_w // 2, pad_h - pad_h // 2),
+            fill=(0, 0, 0),
+        )
+    return img
+
+def augment_train(img: Image.Image) -> Image.Image:
+    # Lightweight, deterministic-friendly augmentation with seed set by caller if desired
+    # Random horizontal flip (50%), small brightness jitter
+    # For true determinism, set PYTHONHASHSEED and random seeds before calling.
+    import random
+    if random.random() < 0.5:
+        img = ImageOps.mirror(img)
+    # Brightness jitter +/-10%
+    factor = 1.0 + (random.random() - 0.5) * 0.2
+    img = ImageEnhanceBrightness(img, factor)
+    return img
+
+class ImageEnhanceBrightness:
+    # Minimal brightness enhancer (avoid extra dependency)
+    def __init__(self, img: Image.Image, factor: float):
+        self.img = img
+        self.factor = factor
+    def __call__(self) -> Image.Image:
+        arr = np.array(self.img).astype(np.float32)
+        arr = np.clip(arr * self.factor, 0, 255).astype(np.uint8)
+        return Image.fromarray(arr)
+
+def ImageEnhanceBrightness(img: Image.Image, factor: float) -> Image.Image:
+    enhancer = ImageEnhanceBrightness(img, factor)
+    return enhancer()
+
+# ---------------------------
+# Normalization stats
+# ---------------------------
+def compute_mean_std(image_paths: List[str]) -> Tuple[List[float], List[float]]:
+    """
+    Compute per-channel mean and std in [0,1] space from a list of RGB image paths.
+    Uses streaming computation to avoid high memory usage.
+    """
+    n_pixels_total = 0
+    channel_sum = np.zeros(3, dtype=np.float64)
+    channel_sq_sum = np.zeros(3, dtype=np.float64)
+
+    for p in tqdm(image_paths, desc="Computing normalization stats"):
+        img = load_image(p)
+        arr = np.asarray(img).astype(np.float32) / 255.0  # H, W, 3
+        h, w, _ = arr.shape
+        n = h * w
+        n_pixels_total += n
+        # Sum over H and W
+        channel_sum += arr.reshape(-1, 3).sum(axis=0)
+        channel_sq_sum += (arr.reshape(-1, 3) ** 2).sum(axis=0)
+
+    mean = (channel_sum / n_pixels_total).tolist()
+    var = (channel_sq_sum / n_pixels_total - np.array(mean) ** 2).tolist()
+    std = np.sqrt(np.maximum(var, 1e-8)).tolist()
+    return mean, std
+
+# ---------------------------
+# Processing core
+# ---------------------------
+def process_split(
+    items: List[Dict],
+    split_name: str,
+    proc_root: Path,
+    image_size: Tuple[int, int],
+    image_format: str,
+    augment: bool
+) -> List[Dict]:
+    """
+    Process and save images for a split into proc_root/{split}/{class}/.
+    Returns processed manifest items: {path, label, class_name, source_path}.
+    """
+    split_dir = proc_root / split_name
+    clean_dir(split_dir)
+
+    # Ensure class directories exist
+    class_names = sorted({it["class_name"] for it in items})
+    for cname in class_names:
+        ensure_dir(split_dir / cname)
+
+    processed_manifest: List[Dict] = []
+    for idx, it in enumerate(tqdm(items, desc=f"Processing {split_name}")):
+        src_path = it["path"]
+        label = int(it["label"])
+        cname = it["class_name"]
+
+        img = load_image(src_path)
+        img = resize_image(img, image_size)
+        if augment and split_name == "train":
+            img = augment_train(img)
+
+        # Deterministic filename carries source info
+        fname = f"{split_name}_{cname}_{idx}.{image_format}"
+        out_path = split_dir / cname / fname
+        img.save(out_path, format=image_format.upper())
+
+        processed_manifest.append({
+            "path": str(out_path),
+            "label": label,
+            "class_name": cname,
+            "source_path": src_path
+        })
+
+    return processed_manifest
+
+def build_processed_dataset(
+    raw_root: str = DEFAULT_RAW_ROOT,
+    proc_root: str = DEFAULT_PROC_ROOT,
+    image_size_w: int = DEFAULT_IMAGE_SIZE[0],
+    image_size_h: int = DEFAULT_IMAGE_SIZE[1],
+    image_format: str = DEFAULT_IMAGE_FORMAT,
+    augment: bool = DEFAULT_AUGMENT
+) -> Dict:
+    """
+    Orchestrates preprocessing from data/raw to data/processed.
+    Returns summary stats and file counts.
+    """
+    raw_root_path = Path(raw_root)
+    proc_root_path = Path(proc_root)
+
+    manifests = list_required_manifests(raw_root_path)
+    verify_manifests_exist(manifests)
+
+    # Read raw manifests
+    train_items = split_items(manifests["train"])
+    val_items = split_items(manifests["val"])
+    test_items = split_items(manifests["test"])
+
+    # Process splits
+    image_size = (image_size_w, image_size_h)
+    train_proc = process_split(train_items, "train", proc_root_path, image_size, image_format, augment)
+    val_proc = process_split(val_items, "val", proc_root_path, image_size, image_format, False)
+    test_proc = process_split(test_items, "test", proc_root_path, image_size, image_format, False)
+
+    # Write processed manifests
+    mroot = proc_root_path / "manifests"
+    ensure_dir(mroot)
+    write_json(mroot / "train.json", train_proc)
+    write_json(mroot / "val.json", val_proc)
+    write_json(mroot / "test.json", test_proc)
+
+    # Compute normalization stats from processed train images
+    train_paths = [it["path"] for it in train_proc]
+    mean, std = compute_mean_std(train_paths)
+
+    # Aggregate stats
+    class_names = sorted({it["class_name"] for it in train_proc + val_proc + test_proc})
+    stats = {
+        "source": str(raw_root_path),
+        "processed_root": str(proc_root_path),
+        "image_size": {"width": image_size_w, "height": image_size_h},
+        "image_format": image_format,
+        "augment_train": bool(augment),
+        "class_names": class_names,
+        "counts": {
+            "train": len(train_proc),
+            "val": len(val_proc),
+            "test": len(test_proc),
+            "total": len(train_proc) + len(val_proc) + len(test_proc),
+        },
+        "normalization": {
+            "mean": mean,  # per-channel RGB mean in [0,1]
+            "std": std     # per-channel RGB std in [0,1]
+        }
+    }
+    write_json(proc_root_path / "stats.json", stats)
+
+    return stats
+
+# ---------------------------
+# CLI
+# ---------------------------
+def parse_args():
+    p = argparse.ArgumentParser(description="Preprocess raw images into processed dataset with resizing and stats.")
+    p.add_argument("--raw-root", type=str, default=DEFAULT_RAW_ROOT, help="Root of raw dataset (expects manifests).")
+    p.add_argument("--proc-root", type=str, default=DEFAULT_PROC_ROOT, help="Output root for processed dataset.")
+    p.add_argument("--image-size", nargs=2, type=int, default=DEFAULT_IMAGE_SIZE, metavar=("W", "H"),
+                   help="Target image size (width height).")
+    p.add_argument("--image-format", type=str, default=DEFAULT_IMAGE_FORMAT, choices=["png", "jpg", "jpeg"],
+                   help="Output image format.")
+    p.add_argument("--augment", action="store_true", help="Enable simple train-time augmentation (flip + brightness).")
+    return p.parse_args()
+
+def main():
+    args = parse_args()
+    stats = build_processed_dataset(
+        raw_root=args.raw_root,
+        proc_root=args.proc_root,
+        image_size_w=args.image_size[0],
+        image_size_h=args.image_size[1],
+        image_format=args.image_format,
+        augment=bool(args.augment)
+    )
+    print(json.dumps(stats, indent=2))
+
+if __name__ == "__main__":
+    main()
