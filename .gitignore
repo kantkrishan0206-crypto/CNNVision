@@ -14,6 +14,9 @@ venv/
 .ipynb_checkpoints/
 
 # Data (don’t push raw/processed datasets)
+data/
+raw/
+processed/
 models/*.pth
 
 # Logs and outputs
@@ -24,3 +27,4 @@ logs/
 .vscode/
 
 
+data/
