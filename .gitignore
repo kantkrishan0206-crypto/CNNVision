@@ -1,1 +1,26 @@
-# Ignore Python cache and data
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Data (don’t push raw/processed datasets)
+models/*.pth
+
+# Logs and outputs
+logs/
+*.log
+
+# VS Code settings
+.vscode/
+
+
