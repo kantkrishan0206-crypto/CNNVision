@@ -1,0 +1,102 @@
+RUN MANIFEST
+timestamp (UTC): 2025-10-09T14:24:07.562077Z
+cwd: C:\Users\Dell\CNNVision-1\notebooks
+python: c:\Users\Dell\CNNVision-1\.venv\Scripts\python.exe (3.11.9)
+platform: Windows-10-10.0.26100-SP0
+torch: 2.5.1+cu121 (cuda build: 12.1)
+cuda available: True, devices: ['NVIDIA GeForce RTX 3050 Ti Laptop GPU']
+
+GIT INFO:
+  branch: dev
+  commit: be7795197a500b522a18d0ce475683dad198291d
+  status: M notebooks/exploration.ipynb
+?? .venvScriptsactivate
+?? notebooks/models/
+?? notebooks/notebooks/
+  remote_url: https://github.com/kantkrishan0206-crypto/CNNVision.git
+
+HYPERPARAMETERS:
+  EPOCHS: None
+  LR: None
+  WEIGHT_DECAY: None
+  BATCH_SIZE: None
+  SEED: None
+  MODEL_CLASS: CNNModel
+
+DATASET:
+  train_size: None
+  val_size: None
+  test_size: 10000
+  classes: ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+
+CHECKPOINT PATH: C:\Users\Dell\CNNVision-1\notebooks\models\cnn_model.pth
+METRICS PATH: C:\Users\Dell\CNNVision-1\notebooks\notebooks\outputs\metrics.json
+
+METRICS SUMMARY:
+  epochs: 10
+  lr: 0.001
+  weight_decay: 0.0001
+  train_losses: [1.3787490674760607, 0.9627406164911059, 0.822420419300927, 0.7296375476201375, 0.6711080989837647, 0.5735287851121691, 0.5434024235513475, 0.5140865187433031, 0.4924471978293525, 0.4746676590707567]
+  val_losses: [1.0012703354477883, 0.8089467958211899, 0.6826765987694263, 0.6747198269583284, 0.5953990836501122, 0.49750765473097563, 0.47132711076140404, 0.466880409565568, 0.45600319376960397, 0.4687399097552523]
+  val_accs: [0.6552, 0.7132, 0.7652, 0.7704, 0.7904, 0.8296, 0.8416, 0.8468, 0.847, 0.8462]
+  best_val_acc: 0.847
+  total_time_sec: 1091.7533161640167
+
+REPRODUCIBILITY NOTES:
+  torch_manual_seed: None
+  torch_cuda_manual_seed_all_set: False
+  cudnn_benchmark: False
+  cudnn_deterministic: False
+  notes: If you want full bitwise reproducibility enable deterministic flags and set seeds for numpy/random/torch.
+
+SAMPLE pip freeze (first 50 lines):
+  asttokens==3.0.0
+  colorama==0.4.6
+  comm==0.2.3
+  contourpy==1.3.3
+  cycler==0.12.1
+  debugpy==1.8.17
+  decorator==5.2.1
+  executing==2.2.1
+  filelock==3.13.1
+  fonttools==4.60.1
+  fsspec==2024.6.1
+  iniconfig==2.1.0
+  ipykernel==6.30.1
+  ipython==9.6.0
+  ipython_pygments_lexers==1.1.1
+  jedi==0.19.2
+  Jinja2==3.1.4
+  joblib==1.5.2
+  jupyter_client==8.6.3
+  jupyter_core==5.8.1
+  kiwisolver==1.4.9
+  MarkupSafe==2.1.5
+  matplotlib==3.10.7
+  matplotlib-inline==0.1.7
+  mpmath==1.3.0
+  nest-asyncio==1.6.0
+  networkx==3.3
+  numpy==2.1.2
+  packaging==25.0
+  pandas==2.3.3
+  parso==0.8.5
+  pillow==11.0.0
+  platformdirs==4.5.0
+  pluggy==1.6.0
+  prompt_toolkit==3.0.52
+  psutil==7.1.0
+  pure_eval==0.2.3
+  Pygments==2.19.2
+  pyparsing==3.2.5
+  pytest==8.4.2
+  python-dateutil==2.9.0.post0
+  pytz==2025.2
+  pywin32==311
+  pyzmq==27.1.0
+  scikit-learn==1.7.2
+  scipy==1.16.2
+  six==1.17.0
+  stack-data==0.6.3
+  sympy==1.13.1
+  threadpoolctl==3.6.0
