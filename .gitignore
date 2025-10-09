@@ -29,3 +29,5 @@ logs/
 
 data/
 data/raw/
+.venv/
+notebooks/outputs/
