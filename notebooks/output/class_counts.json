@@ -1,0 +1,28 @@
+{
+  "class_counts": {
+    "train": {
+      "airplane": 4448,
+      "automobile": 4485,
+      "bird": 4514,
+      "cat": 4525,
+      "deer": 4558,
+      "dog": 4504,
+      "frog": 4477,
+      "horse": 4505,
+      "ship": 4485,
+      "truck": 4499
+    },
+    "val": {
+      "airplane": 552,
+      "automobile": 515,
+      "bird": 486,
+      "cat": 475,
+      "deer": 442,
+      "dog": 496,
+      "frog": 523,
+      "horse": 495,
+      "ship": 515,
+      "truck": 501
+    }
+  }
+}
